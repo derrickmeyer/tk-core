@@ -14,8 +14,6 @@ from mock import patch
 from tank_test.tank_test_base import *
 import tank_test
 
-from tank.util import login
-
 from tank.util.core_authentication_manager import CoreAuthenticationManager
 from tank_vendor.shotgun_authentication import connection
 from tank_vendor.shotgun_api3 import shotgun
@@ -74,7 +72,7 @@ class AuthenticationTests(TankTestBase):
     @patch("tank_test.mockgun.Shotgun.find_one")
     def test_unexpected_failure_in_validate_session_token(self, find_one_mock):
         """
-        In _validate_session_token, if find_one throws anything else than AuthenticationFault, it 
+        In _validate_session_token, if find_one throws anything else than AuthenticationFault, it
         should be rethrown.
         """
         # Any other error type than AuthenticationFailed is unexpected and should be rethrown

@@ -27,7 +27,7 @@ from . import connection
 # FIXME: Quick hack to easily disable logging in this module while keeping the
 # code compatible. We have to disable it by default because Maya will print all out
 # debug strings.
-if False:
+if True:
     # Configure logging
     import logging
     logger = logging.getLogger("sgtk.interactive_authentication")

@@ -9,23 +9,24 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 """
-Shotgun connection creation for session based connections.
+Shotgun connection creation.
 """
 
 from tank_vendor.shotgun_api3 import Shotgun
 from tank_vendor.shotgun_api3.lib import httplib2
 from tank_vendor.shotgun_api3 import AuthenticationFault, ProtocolError
 
-from .errors import AuthenticationError
+from .errors import AuthenticationError, ShotgunAuthenticationModuleError
 
+_shotgun_instance_factory = Shotgun
 
 # FIXME: Quick hack to easily disable logging in this module while keeping the
 # code compatible. We have to disable it by default because Maya will print all out
 # debug strings.
-if False:
+if True:
     # Configure logging
     import logging
-    logger = logging.getLogger("sgtk.session")
+    logger = logging.getLogger("sgtk.connection")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 else:
@@ -81,7 +82,7 @@ def generate_session_token(hostname, login, password, http_proxy, shotgun_instan
         logging.exception("There was a problem logging in.")
 
 
-def create_sg_connection_from_session(connection_information, shotgun_instance_factory=Shotgun):
+def create_sg_connection_from_session(connection_information):
     """
     Tries to auto login to the site using the existing session_token that was saved.
     :param connection_information: Authentication credentials.
@@ -101,7 +102,6 @@ def create_sg_connection_from_session(connection_information, shotgun_instance_f
         connection_information["host"],
         connection_information["session_token"],
         connection_information.get("http_proxy"),
-        shotgun_instance_factory
     )
     if sg:
         logger.debug("Token is still valid!")
@@ -111,7 +111,7 @@ def create_sg_connection_from_session(connection_information, shotgun_instance_f
         return None
 
 
-def _validate_session_token(host, session_token, http_proxy, shotgun_instance_factory):
+def _validate_session_token(host, session_token, http_proxy):
     """
     Validates the session token by attempting to an authenticated request on the site.
     :param session_token: Session token to use to connect to the host.
@@ -122,7 +122,8 @@ def _validate_session_token(host, session_token, http_proxy, shotgun_instance_fa
     """
     # Connect to the site
     logger.debug("Creating shotgun instance")
-    sg = shotgun_instance_factory(
+    global _shotgun_instance_factory
+    sg = _shotgun_instance_factory(
         host,
         session_token=session_token,
         http_proxy=http_proxy
@@ -142,6 +143,7 @@ def create_sg_connection_from_script_user(connection_information):
     :param connection_information: A dictionary with keys host, api_script, api_key and an optional http_proxy.
     :returns: A Shotgun instance.
     """
+    global _shotgun_instance_factory
     return _shotgun_instance_factory(
         connection_information["host"],
         script_name=connection_information["api_script"],
@@ -149,3 +151,120 @@ def create_sg_connection_from_script_user(connection_information):
         http_proxy=connection_information.get("http_proxy", None)
     )
 
+
+def _get_qt_state():
+    try:
+        from .ui.qt_abstraction import QtGui, QtCore
+    except ImportError:
+        return None, None, None
+    return QtCore, QtGui, QtGui.QApplication.instance() is not None
+
+
+def _create_invoker():
+    """
+    Create the object used to invoke function calls on the main thread when
+    called from a different thread.
+
+    :returns:  Invoker instance. If Qt is not available or there is no UI, no invoker will be returned.
+    """
+    QtCore, QtGui, has_ui = _get_qt_state()
+    # If we have a ui and we're not in the main thread, we'll need to send ui requests to the
+    # main thread.
+    if not QtCore or not QtGui or not has_ui:
+        return None
+
+    class MainThreadInvoker(QtCore.QObject):
+        """
+        Class that allows sending message to the main thread.
+        """
+        def __init__(self):
+            QtCore.QObject.__init__(self)
+            self._res = None
+
+        def __call__(self, fn, *args, **kwargs):
+            self._fn = lambda: fn(*args, **kwargs)
+            self._res = None
+
+            QtCore.QMetaObject.invokeMethod(self, "_do_invoke", QtCore.Qt.BlockingQueuedConnection)
+
+            return self._res
+
+        @QtCore.Slot()
+        def _do_invoke(self):
+            """
+            Execute function and return result
+            """
+            self._res = self._fn()
+
+    # Make sure that the invoker is for the main thread only.
+    invoker = MainThreadInvoker()
+    invoker.moveToThread(QtCore.QThread.currentThread())
+    return invoker
+
+_invoker = _create_invoker()
+
+
+def _renew_session():
+    from . import interactive_authentication
+    QtCore, QtGui, has_ui = _get_qt_state()
+    # If we have a gui, we need gui based authentication
+    if has_ui:
+        # If we are renewing for a background thread, use the invoker
+        if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
+            global _invoker
+            _invoker(interactive_authentication.ui_renew_session)
+        else:
+            interactive_authentication.ui_renew_session()
+    else:
+        interactive_authentication.console_renew_session()
+
+
+def _create_or_renew_sg_connection_from_session(connection_information):
+    """
+    Creates a shotgun connection using the current session token or a new one if the old one
+    expired.
+    :param connection_information: A dictionary holding the connection information.
+    :returns: A valid Shotgun instance.
+    :raises TankAuthenticationError: If we couldn't get a valid session, a TankAuthenticationError is thrown.
+    """
+
+    # If the Shotgun login was not automated, then try to create a Shotgun
+    # instance from the cached session id.
+    sg = create_sg_connection_from_session(connection_information)
+    # If worked, just return the result.
+    if sg:
+        return sg
+
+    from . import authentication
+
+    try:
+        _renew_session()
+        sg = create_sg_connection_from_session(
+            authentication.get_connection_information()
+        )
+        if not sg:
+            raise AuthenticationError("Authentication failed.")
+    except:
+        # If the authentication failed, clear the cached credentials. Only do it here instead of befor
+        # the renewal otherwise multiple threads who are about to ask for credentials might clear
+        # the newer credentials that another thread cached.
+        authentication.clear_cached_credentials()
+        raise
+    return sg
+
+
+def create_authenticated_sg_connection():
+    """
+    Creates an authenticated Shotgun connection.
+    :param config_data: A dictionary holding the site configuration.
+    :returns: A Shotgun instance.
+    """
+    from tank_vendor.shotgun_authentication import authentication
+
+    connection_information = authentication.get_connection_information()
+    # If no configuration information
+    if authentication.is_script_user_authenticated(connection_information):
+        # create API
+        create_sg_connection_from_script_user(connection_information)
+    else:
+        return _create_or_renew_sg_connection_from_session(connection_information)
