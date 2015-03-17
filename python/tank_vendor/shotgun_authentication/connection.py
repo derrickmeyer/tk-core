@@ -134,3 +134,18 @@ def _validate_session_token(host, session_token, http_proxy, shotgun_instance_fa
         # Session was expired.
         logger.exception(e)
         return None
+
+
+def create_sg_connection_from_script_user(connection_information):
+    """
+    Create a Shotgun connection based on a script user.
+    :param connection_information: A dictionary with keys host, api_script, api_key and an optional http_proxy.
+    :returns: A Shotgun instance.
+    """
+    return _shotgun_instance_factory(
+        connection_information["host"],
+        script_name=connection_information["api_script"],
+        api_key=connection_information["api_key"],
+        http_proxy=connection_information.get("http_proxy", None)
+    )
+

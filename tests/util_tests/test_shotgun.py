@@ -485,7 +485,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
         def renew_session(self):
             pass
 
-    @patch("tank_vendor.shotgun_authentication.session.create_sg_connection_from_session")
+    @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
     @patch("tank.platform.engine.current_engine")
     def test_create_connection_with_session_renewal(self, current_engine_mock, create_sg_connection_from_session_mock):
         """
@@ -508,7 +508,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
         self.assertEqual(create_sg_connection_from_session_mock.call_count, 2)
         self.assertEqual(id(result), id(new_connection))
 
-    @patch("tank_vendor.shotgun_authentication.session.create_sg_connection_from_session")
+    @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
     @patch("tank.platform.engine.current_engine")
     def test_create_connection_with_session_renewal_failure(self, current_engine_mock, create_sg_connection_from_session_mock):
         """
@@ -527,7 +527,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
         self.assertTrue(current_engine_mock.called)
         self.assertEqual(create_sg_connection_from_session_mock.call_count, 2)
 
-    @patch("tank_vendor.shotgun_authentication.session.create_sg_connection_from_session")
+    @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
     def test_create_connection_with_no_engine(self, create_sg_connection_from_session_mock):
         """
         When there is no engine available, session renewal will fail and a TankAuthenticationError will

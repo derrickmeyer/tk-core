@@ -21,7 +21,7 @@ import os
 import sys
 from .errors import AuthenticationError, AuthenticationDisabled
 from . import authentication
-from . import session
+from . import connection
 
 
 # FIXME: Quick hack to easily disable logging in this module while keeping the
@@ -111,7 +111,7 @@ class AuthenticationHandlerBase(object):
         :returns: If the credentials were valid, returns a session token, otherwise returns None.
         """
         try:
-            return session.generate_session_token(hostname, login, password, http_proxy)
+            return connection.generate_session_token(hostname, login, password, http_proxy)
         except AuthenticationError:
             return None
 
@@ -201,7 +201,7 @@ class ConsoleAuthenticationHandlerBase(AuthenticationHandlerBase):
             print "Login failed."
         return token
         try:
-            return session.generate_session_token(hostname, login, password, http_proxy)
+            return connection.generate_session_token(hostname, login, password, http_proxy)
         except AuthenticationError:
             return None
 
