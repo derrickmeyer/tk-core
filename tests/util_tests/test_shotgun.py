@@ -483,8 +483,8 @@ class TestCreateSessionBasedConnection(TankTestBase):
         self.assertEqual(create_or_renew_sg_connection_from_session_mock.call_count, 1)
 
     @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
-    @patch("tank_vendor.shotgun_authentication.connection._get_invoker")
-    def test_create_connection_with_session_renewal(self, get_invoker_mock, create_sg_connection_from_session_mock):
+    @patch("tank_vendor.shotgun_authentication.connection._renew_session")
+    def test_create_connection_with_session_renewal(self, renew_session_mock, create_sg_connection_from_session_mock):
         """
         When there is no valid session cached, the engine's renew session should take care of the
         session renewal
@@ -494,30 +494,30 @@ class TestCreateSessionBasedConnection(TankTestBase):
         # First call will fail creating something from the cache, and the second call will be the 
         # after we renwed the session.
         create_sg_connection_from_session_mock.side_effect = [None, new_connection]
-        get_invoker_mock.return_value = lambda *args, **kwargs: None
+        renew_session_mock.return_value = None
 
         result = connection._create_or_renew_sg_connection_from_session(
             "unused"
         )
 
         # Make sure we tried to renew the sesion
-        self.assertTrue(get_invoker_mock.called)
+        self.assertTrue(renew_session_mock.called)
         self.assertEqual(create_sg_connection_from_session_mock.call_count, 2)
         self.assertEqual(id(result), id(new_connection))
 
     @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
-    @patch("tank_vendor.shotgun_authentication.connection._get_invoker")
-    def test_create_connection_with_session_renewal_failure(self, get_invoker_mock, create_sg_connection_from_session_mock):
+    @patch("tank_vendor.shotgun_authentication.connection._renew_session")
+    def test_create_connection_with_session_renewal_failure(self, renew_session_mock, create_sg_connection_from_session_mock):
         """
         When there is no valid session cached, the engine's renew session should take care of the
         session renewal, but if the session renewal failed, we should get a TankAuthenticationError
         """
         # Always fail creating a cached session
         create_sg_connection_from_session_mock.return_value = None
-        get_invoker_mock.return_value = lambda *args, **kwargs: None
+        renew_session_mock.return_value = None
 
         with self.assertRaisesRegexp(auth_errors.AuthenticationError, "failed"):
             connection._create_or_renew_sg_connection_from_session("unused")
         # Make sure we tried to renew the sesion
-        self.assertTrue(get_invoker_mock.called)
+        self.assertTrue(renew_session_mock.called)
         self.assertEqual(create_sg_connection_from_session_mock.call_count, 2)

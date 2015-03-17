@@ -16,14 +16,14 @@ from tank_vendor.shotgun_api3 import Shotgun
 from tank_vendor.shotgun_api3.lib import httplib2
 from tank_vendor.shotgun_api3 import AuthenticationFault, ProtocolError
 
-from .errors import AuthenticationError, ShotgunAuthenticationModuleError
+from .errors import AuthenticationError
 
 _shotgun_instance_factory = Shotgun
 
 # FIXME: Quick hack to easily disable logging in this module while keeping the
 # code compatible. We have to disable it by default because Maya will print all out
 # debug strings.
-if True:
+if False:
     # Configure logging
     import logging
     logger = logging.getLogger("sgtk.connection")
@@ -153,6 +153,11 @@ def create_sg_connection_from_script_user(connection_information):
 
 
 def _get_qt_state():
+    """
+    Returns the state of Qt: the librairies available and if we have a ui or not.
+    :returns: If Qt is available, a tuple of (QtCore, QtGui, has_ui_boolean_flag).
+              Otherwise, (None, None, None)
+    """
     try:
         from .ui.qt_abstraction import QtGui, QtCore
     except ImportError:
@@ -171,22 +176,39 @@ def _create_invoker():
     # If we have a ui and we're not in the main thread, we'll need to send ui requests to the
     # main thread.
     if not QtCore or not QtGui or not has_ui:
-        return None
+        return lambda fn, *args, **kwargs: fn(*args, **kwargs)
 
     class MainThreadInvoker(QtCore.QObject):
         """
         Class that allows sending message to the main thread.
         """
         def __init__(self):
+            """
+            Constructor.
+            """
             QtCore.QObject.__init__(self)
             self._res = None
+            self._exception = None
+            # Make sure that the invoker is bound to the main thread
+            self.moveToThread(QtGui.QApplication.instance().thread())
 
         def __call__(self, fn, *args, **kwargs):
+            """
+            Asks the MainTheadInvoker to call a function with the provided parameters in the main
+            thread.
+            :param fn: Function to call in the main thread.
+            :param args: Array of arguments for the method.
+            :param kwargs: Dictionary of named arguments for the method.
+            :returns: The result from the function.
+            """
             self._fn = lambda: fn(*args, **kwargs)
             self._res = None
 
             QtCore.QMetaObject.invokeMethod(self, "_do_invoke", QtCore.Qt.BlockingQueuedConnection)
 
+            # If an exception has been thrown, rethrow it.
+            if self._exception:
+                raise self._exception
             return self._res
 
         @QtCore.Slot()
@@ -194,14 +216,12 @@ def _create_invoker():
             """
             Execute function and return result
             """
-            self._res = self._fn()
+            try:
+                self._res = self._fn()
+            except Exception, e:
+                self._exception = e
 
-    # Make sure that the invoker is for the main thread only.
-    invoker = MainThreadInvoker()
-    invoker.moveToThread(QtCore.QThread.currentThread())
-    return invoker
-
-_invoker = _create_invoker()
+    return MainThreadInvoker()
 
 
 def _renew_session():
@@ -211,8 +231,7 @@ def _renew_session():
     if has_ui:
         # If we are renewing for a background thread, use the invoker
         if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            global _invoker
-            _invoker(interactive_authentication.ui_renew_session)
+            _create_invoker()(interactive_authentication.ui_renew_session)
         else:
             interactive_authentication.ui_renew_session()
     else:
@@ -259,7 +278,7 @@ def create_authenticated_sg_connection():
     :param config_data: A dictionary holding the site configuration.
     :returns: A Shotgun instance.
     """
-    from tank_vendor.shotgun_authentication import authentication
+    from . import authentication
 
     connection_information = authentication.get_connection_information()
     # If no configuration information
