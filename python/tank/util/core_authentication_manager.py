@@ -93,7 +93,7 @@ class CoreAuthenticationManager(AuthenticationManager):
         else:
             return {}
 
-    def _is_authenticated(self, connection_information):
+    def _has_cached_credentials(self, connection_information):
         """
         Tests if we are authenticated as script user. If we are not, tests if we are authenticated as a
         human user.
@@ -104,7 +104,7 @@ class CoreAuthenticationManager(AuthenticationManager):
             logger.debug("Is script user authenticated.")
             return True
         else:
-            return super(CoreAuthenticationManager, self)._is_authenticated(connection_information)
+            return super(CoreAuthenticationManager, self)._has_cached_credentials(connection_information)
 
     @property
     def _core_config_data(self):

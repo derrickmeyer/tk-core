@@ -143,6 +143,7 @@ def create_sg_connection_from_script_user(connection_information):
     :param connection_information: A dictionary with keys host, api_script, api_key and an optional http_proxy.
     :returns: A Shotgun instance.
     """
+    logger.debug("Creating connection with script user.")
     global _shotgun_instance_factory
     return _shotgun_instance_factory(
         connection_information["host"],
@@ -246,7 +247,7 @@ def _create_or_renew_sg_connection_from_session(connection_information):
     :returns: A valid Shotgun instance.
     :raises TankAuthenticationError: If we couldn't get a valid session, a TankAuthenticationError is thrown.
     """
-
+    logger.debug("Creating connection with cached session token.")
     # If the Shotgun login was not automated, then try to create a Shotgun
     # instance from the cached session id.
     sg = create_sg_connection_from_session(connection_information)
@@ -257,6 +258,7 @@ def _create_or_renew_sg_connection_from_session(connection_information):
     from . import authentication
 
     try:
+        logger.debug("Credentials were out of date, renewing them.")
         _renew_session()
         sg = create_sg_connection_from_session(
             authentication.get_connection_information()

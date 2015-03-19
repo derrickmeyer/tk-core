@@ -135,9 +135,7 @@ class AuthenticationManager(object):
         :param connection_information: Information used to connect to Shotgun.
         :returns: True is we are using a session, False otherwise.
         """
-        from . import connection
-        # Try to create a connection. If something is created, we are authenticated.
-        is_human_user = connection.create_sg_connection_from_session(connection_information) is not None
+        is_human_user = "login" in connection_information and "session_token" in connection_information
         logger.debug("is_human_user: %s" % is_human_user)
         return is_human_user
 
@@ -215,16 +213,16 @@ class AuthenticationManager(object):
         else:
             return None
 
-    def is_authenticated(self):
+    def has_cached_credentials(self):
         """
         Indicates if we need to authenticate.
         :returns: True is we are authenticated, False otherwise.
         """
-        return self._is_authenticated(self.get_connection_information())
+        return self._has_cached_credentials(self.get_connection_information())
 
-    def _is_authenticated(self, connection_information):
+    def _has_cached_credentials(self, connection_information):
         """
-        Actual implementation of the is_authenticated test. This is the method to override in derived classes.
+        Actual implementation of the has_cached_credentials test. This is the method to override in derived classes.
         :param connection_information: Information used to connect to Shotgun.
         :returns: True is we are authenticated, False otherwise.
         """

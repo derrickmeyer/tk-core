@@ -77,12 +77,12 @@ def logout():
     return AuthenticationManager.get_instance().logout()
 
 
-def is_authenticated():
+def has_cached_credentials():
     """
     Indicates if we need to authenticate.
     :returns: True is we are authenticated, False otherwise.
     """
-    return AuthenticationManager.get_instance().is_authenticated()
+    return AuthenticationManager.get_instance().has_cached_credentials()
 
 
 def clear_cached_credentials():

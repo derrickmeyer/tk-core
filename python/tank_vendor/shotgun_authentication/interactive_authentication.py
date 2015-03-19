@@ -285,26 +285,31 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
         return result
 
 
-def _authentication_loop(credentials_handler):
+def _authentication_loop(credentials_handler, force_authentication=False):
     """
     Common login logic, regardless of how we are actually logging in. It will first try to reuse
     any existing session and if that fails then it will ask for credentials and upon success
     the credentials will be cached.
+    :param force_authentication: Forces the authentication.
     :raises: TankAuthenticationError Thrown if the authentication is cancelled.
     :raises: TankAuthenticationDisabled Thrown if authentication was cancelled before.
     """
     logger.debug("About to take the authentication lock.")
     with AuthenticationHandlerBase._authentication_lock:
         logger.debug("Took the authentication lock.")
-        # If we are authenticated, we're done here.
-        if authentication.is_authenticated():
+        connection_information = authentication.get_connection_information()
+
+        # If we are authenticated as a script user, there's no point trying to authenticate
+        # as a human user, it has precedence.
+        if authentication.is_script_user_authenticated(connection_information):
+            return
+        # If we already have a cached session on file, we'll consider ourselves as authenticated,
+        # unless someone is forcing authentication (in the case of a renew)
+        elif authentication.is_human_user_authenticated(connection_information) and not force_authentication:
             return
         # If somebody disabled authentication, we're done here as well.
         elif AuthenticationHandlerBase._authentication_disabled:
             raise AuthenticationDisabled()
-
-        # Get the current authentication values.
-        connection_information = authentication.get_connection_information()
 
         try:
             logger.debug("Not authenticated, requesting user input.")
@@ -335,7 +340,7 @@ def ui_renew_session(gui_launcher=None):
     _authentication_loop(UiAuthenticationHandler(
         is_session_renewal=True,
         gui_launcher=gui_launcher or (lambda func: func())
-    ))
+    ), force_authentication=True)
 
 
 def ui_authenticate(gui_launcher=None):
@@ -357,7 +362,7 @@ def console_renew_session():
     """
     Prompts the user to enter his password on the command line to retrieve a new session token.
     """
-    _authentication_loop(ConsoleRenewSessionHandler())
+    _authentication_loop(ConsoleRenewSessionHandler(), force_authentication=True)
 
 
 def console_authenticate():
