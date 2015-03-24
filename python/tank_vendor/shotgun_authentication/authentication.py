@@ -57,13 +57,6 @@ def get_connection_information():
     """
     return AuthenticationManager.get_instance().get_connection_information()
 
-def get_current_user():
-    """
-    Returns a dictionary with connection parameters and user credentials.
-    :returns: A dictionary with keys host, http_proxy and all the keys returned from _get_credentials.
-    """
-    return AuthenticationManager.get_instance().get_current_user()
-
 
 def logout():
     """

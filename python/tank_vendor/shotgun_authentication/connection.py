@@ -153,93 +153,7 @@ def create_sg_connection_from_script_user(connection_information):
     )
 
 
-def _get_qt_state():
-    """
-    Returns the state of Qt: the librairies available and if we have a ui or not.
-    :returns: If Qt is available, a tuple of (QtCore, QtGui, has_ui_boolean_flag).
-              Otherwise, (None, None, None)
-    """
-    try:
-        from .ui.qt_abstraction import QtGui, QtCore
-    except ImportError:
-        return None, None, None
-    return QtCore, QtGui, QtGui.QApplication.instance() is not None
-
-
-def _create_invoker():
-    """
-    Create the object used to invoke function calls on the main thread when
-    called from a different thread.
-
-    :returns:  Invoker instance. If Qt is not available or there is no UI, no invoker will be returned.
-    """
-    QtCore, QtGui, has_ui = _get_qt_state()
-    # If we have a ui and we're not in the main thread, we'll need to send ui requests to the
-    # main thread.
-    if not QtCore or not QtGui or not has_ui:
-        return lambda fn, *args, **kwargs: fn(*args, **kwargs)
-
-    class MainThreadInvoker(QtCore.QObject):
-        """
-        Class that allows sending message to the main thread.
-        """
-        def __init__(self):
-            """
-            Constructor.
-            """
-            QtCore.QObject.__init__(self)
-            self._res = None
-            self._exception = None
-            # Make sure that the invoker is bound to the main thread
-            self.moveToThread(QtGui.QApplication.instance().thread())
-
-        def __call__(self, fn, *args, **kwargs):
-            """
-            Asks the MainTheadInvoker to call a function with the provided parameters in the main
-            thread.
-            :param fn: Function to call in the main thread.
-            :param args: Array of arguments for the method.
-            :param kwargs: Dictionary of named arguments for the method.
-            :returns: The result from the function.
-            """
-            self._fn = lambda: fn(*args, **kwargs)
-            self._res = None
-
-            QtCore.QMetaObject.invokeMethod(self, "_do_invoke", QtCore.Qt.BlockingQueuedConnection)
-
-            # If an exception has been thrown, rethrow it.
-            if self._exception:
-                raise self._exception
-            return self._res
-
-        @QtCore.Slot()
-        def _do_invoke(self):
-            """
-            Execute function and return result
-            """
-            try:
-                self._res = self._fn()
-            except Exception, e:
-                self._exception = e
-
-    return MainThreadInvoker()
-
-
-def _renew_session():
-    from . import interactive_authentication
-    QtCore, QtGui, has_ui = _get_qt_state()
-    # If we have a gui, we need gui based authentication
-    if has_ui:
-        # If we are renewing for a background thread, use the invoker
-        if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            _create_invoker()(interactive_authentication.ui_renew_session)
-        else:
-            interactive_authentication.ui_renew_session()
-    else:
-        interactive_authentication.console_renew_session()
-
-
-def _create_or_renew_sg_connection_from_session(connection_information):
+def create_or_renew_sg_connection_from_session(connection_information):
     """
     Creates a shotgun connection using the current session token or a new one if the old one
     expired.
@@ -256,10 +170,11 @@ def _create_or_renew_sg_connection_from_session(connection_information):
         return sg
 
     from . import authentication
+    from . import interactive_authentication
 
     try:
         logger.debug("Credentials were out of date, renewing them.")
-        _renew_session()
+        interactive_authentication.renew_session()
         sg = create_sg_connection_from_session(
             authentication.get_connection_information()
         )
@@ -272,17 +187,3 @@ def _create_or_renew_sg_connection_from_session(connection_information):
         authentication.clear_cached_credentials()
         raise
     return sg
-
-
-def create_authenticated_sg_connection():
-    """
-    Creates an authenticated Shotgun connection.
-    :param config_data: A dictionary holding the site configuration.
-    :returns: A Shotgun instance.
-    """
-    from . import authentication
-
-    user = authentication.get_current_user()
-    if not user:
-        raise AuthenticationError("No current Shotgun user available.")
-    return user.create_sg_connection()

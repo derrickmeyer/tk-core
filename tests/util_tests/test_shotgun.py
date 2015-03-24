@@ -456,7 +456,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
     """
 
     @patch("tank_vendor.shotgun_authentication.authentication_manager.AuthenticationManager.get_connection_information")
-    @patch("tank_vendor.shotgun_authentication.connection._create_or_renew_sg_connection_from_session")
+    @patch("tank_vendor.shotgun_authentication.connection.create_or_renew_sg_connection_from_session")
     def test_no_script_user_uses_human_user(
         self,
         create_or_renew_sg_connection_from_session_mock,
@@ -464,7 +464,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
     ):
         """
         Makes sure having no user configured in shotgun.yml will invoke the
-        _create_or_renew_sg_connection_from_session function.
+        create_or_renew_sg_connection_from_session function.
         """
         config_data = {
             "host": "https://something.shotgunstudio.com",
@@ -498,7 +498,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
         create_sg_connection_from_session_mock.side_effect = [None, new_connection]
         renew_session_mock.return_value = None
 
-        result = connection._create_or_renew_sg_connection_from_session(
+        result = connection.create_or_renew_sg_connection_from_session(
             "unused"
         )
 
@@ -519,7 +519,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
         renew_session_mock.return_value = None
 
         with self.assertRaisesRegexp(auth_errors.AuthenticationError, "failed"):
-            connection._create_or_renew_sg_connection_from_session("unused")
+            connection.create_or_renew_sg_connection_from_session("unused")
         # Make sure we tried to renew the sesion
         self.assertTrue(renew_session_mock.called)
         self.assertEqual(create_sg_connection_from_session_mock.call_count, 2)

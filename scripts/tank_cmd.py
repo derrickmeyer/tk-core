@@ -22,7 +22,8 @@ from tank.deploy import tank_command
 from tank.deploy.tank_commands.core_upgrade import TankCoreUpgrader
 from tank.deploy.tank_commands.action_base import Action
 from tank.util import shotgun
-from tank.util.interactive_authentication import console_authenticate, console_logout
+from tank.util.interactive_authentication import console_logout
+from tank_vendor.shotgun_authentication import get_user, AuthenticationModuleError
 from tank.platform import engine
 from tank import pipelineconfig_utils
 
@@ -1143,7 +1144,7 @@ if __name__ == "__main__":
             console_logout()
             sys.exit()
         else:
-            console_authenticate()
+            user = get_user()
 
         if len(cmd_line) == 0:
             # > tank, no arguments
@@ -1234,7 +1235,7 @@ if __name__ == "__main__":
 
             exit_code = run_engine_cmd(logger, pipeline_config_root, ctx_list, cmd_name, using_cwd, cmd_args)
 
-    except TankAuthenticationError, e:
+    except AuthenticationModuleError, e:
         logger.info("Authentication was cancelled.")
         # Error messages and such have already been handled by the method that threw this exception.
         sys.exit(8)

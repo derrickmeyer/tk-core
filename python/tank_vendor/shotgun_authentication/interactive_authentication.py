@@ -56,6 +56,78 @@ else:
             pass
 
 
+def _get_qt_state():
+    """
+    Returns the state of Qt: the librairies available and if we have a ui or not.
+    :returns: If Qt is available, a tuple of (QtCore, QtGui, has_ui_boolean_flag).
+              Otherwise, (None, None, None)
+    """
+    try:
+        from .ui.qt_abstraction import QtGui, QtCore
+    except ImportError:
+        return None, None, None
+    return QtCore, QtGui, QtGui.QApplication.instance() is not None
+
+
+def _create_invoker():
+    """
+    Create the object used to invoke function calls on the main thread when
+    called from a different thread.
+
+    :returns:  Invoker instance. If Qt is not available or there is no UI, no invoker will be returned.
+    """
+    QtCore, QtGui, has_ui = _get_qt_state()
+    # If we have a ui and we're not in the main thread, we'll need to send ui requests to the
+    # main thread.
+    if not QtCore or not QtGui or not has_ui:
+        return lambda fn, *args, **kwargs: fn(*args, **kwargs)
+
+    class MainThreadInvoker(QtCore.QObject):
+        """
+        Class that allows sending message to the main thread.
+        """
+        def __init__(self):
+            """
+            Constructor.
+            """
+            QtCore.QObject.__init__(self)
+            self._res = None
+            self._exception = None
+            # Make sure that the invoker is bound to the main thread
+            self.moveToThread(QtGui.QApplication.instance().thread())
+
+        def __call__(self, fn, *args, **kwargs):
+            """
+            Asks the MainTheadInvoker to call a function with the provided parameters in the main
+            thread.
+            :param fn: Function to call in the main thread.
+            :param args: Array of arguments for the method.
+            :param kwargs: Dictionary of named arguments for the method.
+            :returns: The result from the function.
+            """
+            self._fn = lambda: fn(*args, **kwargs)
+            self._res = None
+
+            QtCore.QMetaObject.invokeMethod(self, "_do_invoke", QtCore.Qt.BlockingQueuedConnection)
+
+            # If an exception has been thrown, rethrow it.
+            if self._exception:
+                raise self._exception
+            return self._res
+
+        @QtCore.Slot()
+        def _do_invoke(self):
+            """
+            Execute function and return result
+            """
+            try:
+                self._res = self._fn()
+            except Exception, e:
+                self._exception = e
+
+    return MainThreadInvoker()
+
+
 def get_login_name():
     """
     Retrieves the login name of the current user.
@@ -244,13 +316,12 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
     Handles ui based authentication.
     """
 
-    def __init__(self, is_session_renewal, gui_launcher):
+    def __init__(self, is_session_renewal):
         """
         Creates the UiAuthenticationHandler object.
         :param is_session_renewal: Boolean indicating if we are renewing a session. True if we are, False otherwise.
         """
         self._is_session_renewal = is_session_renewal
-        self._gui_launcher = gui_launcher
 
     def authenticate(self, hostname, login, http_proxy):
         """
@@ -330,7 +401,7 @@ def _authentication_loop(credentials_handler, force_authentication=False):
         authentication.cache_connection_information(hostname, login, session_token)
 
 
-def ui_renew_session(gui_launcher=None):
+def _ui_renew_session(gui_launcher=None):
     """
     Prompts the user to enter his password in a dialog to retrieve a new session token.
     :param gui_launcher: Function that will launch the gui. The function will be receiving a callable object
@@ -343,7 +414,7 @@ def ui_renew_session(gui_launcher=None):
     ), force_authentication=True)
 
 
-def ui_authenticate(gui_launcher=None):
+def _ui_authenticate(gui_launcher=None):
     """
     Authenticates the current process. Authentication can be done through script user authentication
     or human user authentication. If doing human user authentication and there is no session cached, a
@@ -358,14 +429,14 @@ def ui_authenticate(gui_launcher=None):
     ))
 
 
-def console_renew_session():
+def _console_renew_session():
     """
     Prompts the user to enter his password on the command line to retrieve a new session token.
     """
     _authentication_loop(ConsoleRenewSessionHandler(), force_authentication=True)
 
 
-def console_authenticate():
+def _console_authenticate():
     """
     Authenticates the current process. Authentication can be done through script user authentication
     or human user authentication. If doing human user authentication and there is no session cached, the
@@ -383,3 +454,29 @@ def console_logout():
         print "Succesfully logged out of", connection_info["host"]
     else:
         print "Not logged in."
+
+
+def renew_session():
+    QtCore, QtGui, has_ui = _get_qt_state()
+    # If we have a gui, we need gui based authentication
+    if has_ui:
+        # If we are renewing for a background thread, use the invoker
+        if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
+            _ui_renew_session(_create_invoker())
+        else:
+            _ui_renew_session()
+    else:
+        _console_renew_session()
+
+
+def authenticate():
+    QtCore, QtGui, has_ui = _get_qt_state()
+    # If we have a gui, we need gui based authentication
+    if has_ui:
+        # If we are renewing for a background thread, use the invoker
+        if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
+            _ui_authenticate(_create_invoker())
+        else:
+            _ui_authenticate()
+    else:
+        _console_authenticate()

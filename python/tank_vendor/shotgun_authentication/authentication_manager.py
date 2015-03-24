@@ -88,7 +88,7 @@ class AuthenticationManager(object):
         :returns: A singleton instance of the AuthenticationManager class.
         """
         if not AuthenticationManager.is_activated():
-            raise ActivationError("No AuthenticationManager have been activated yet.")
+            raise ActivationError("No AuthenticationManager has been activated yet.")
         return AuthenticationManager.__instance
 
     @classmethod
@@ -113,7 +113,7 @@ class AuthenticationManager(object):
         :raises: TankError if a manager has not been activated.
         """
         if not AuthenticationManager.is_activated():
-            raise ActivationError("No AuthenticationManager have been activated yet.")
+            raise ActivationError("No AuthenticationManager has been activated yet.")
         logger.debug(
             "Deactivating authentication manager: %s @ %s" %
             (AuthenticationManager.__instance.__class__.__name__,
@@ -167,16 +167,6 @@ class AuthenticationManager(object):
         :returns: A string with the hostname of the proxy. Can be None.
         """
         return None
-
-    def get_current_user(self):
-        from . import user
-        info = self.get_connection_information()
-        if self.is_script_user_authenticated(info):
-            return user.ApiScriptUser(**info)
-        elif self.is_human_user_authenticated(info):
-            return user.HumanUser(**info)
-        else:
-            return None
 
     def get_connection_information(self):
         """

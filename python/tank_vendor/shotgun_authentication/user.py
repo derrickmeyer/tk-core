@@ -9,12 +9,6 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 
-def _not_implemented(class_object, method):
-    raise NotImplementedError(
-        "%s.%s is not implemented." % (class_object.__name__, method)
-    )
-
-
 class ShotgunUser(object):
     def __init__(self, host, http_proxy=None):
         self._host = host
@@ -23,15 +17,27 @@ class ShotgunUser(object):
     def get_host(self):
         return self._host
 
-    def create_sg_connection(self):
-        _not_implemented(self.__class__, "create_sg_connection")
+    def get_http_proxy(self):
+        return self._proxy
+
+    def create_sg_connection_from_script_usern(self):
+        self.__class__._not_implemented("create_sg_connection")
 
     def serialize(self):
-        _not_implemented(self.__class__, "serialize")
+        self.__class__._not_implemented("serialize")
+
+    def get_user_info(self):
+        self.__class__._not_implemented("get_user_info")
 
     @classmethod
-    def deserialize(cls):
-        _not_implemented(cls, "deserialize")
+    def deserialize(cls, representation):
+        cls._not_implemented("deserialize")
+
+    @classmethod
+    def _not_implemented(cls, method):
+        raise NotImplementedError(
+            "%s.%s is not implemented." % (cls.__name__, method)
+        )
 
 
 class HumanUser(ShotgunUser):
@@ -46,7 +52,7 @@ class HumanUser(ShotgunUser):
 
     def create_sg_connection(self):
         from . import connection
-        return connection._create_or_renew_sg_connection_from_session({
+        return connection.create_or_renew_sg_connection_from_session({
             "host": self._host,
             "http_proxy": self._http_proxy,
             "login": self._login,
