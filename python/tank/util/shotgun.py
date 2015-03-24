@@ -32,37 +32,6 @@ from . import login
 
 from tank.errors import TankAuthenticationError
 
-# FIXME: Quick hack to easily disable logging in this module while keeping the
-# code compatible. We have to disable it by default because Maya will print all out
-# debug strings.
-if False:
-    import logging
-    # Configure logging
-    logger = logging.getLogger("sgtk.authentication")
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(logging.StreamHandler())
-else:
-    class logger:
-        @staticmethod
-        def debug(*args, **kwargs):
-            pass
-
-        @staticmethod
-        def info(*args, **kwargs):
-            pass
-
-        @staticmethod
-        def warning(*args, **kwargs):
-            pass
-
-        @staticmethod
-        def error(*args, **kwargs):
-            pass
-
-        @staticmethod
-        def exception(*args, **kwargs):
-            pass
-
 
 def __get_api_core_config_location():
     """
@@ -302,9 +271,7 @@ def get_associated_sg_base_url():
     
     :returns: The base url for the associated Shotgun site
     """
-    # FIXME: Once authentication is moved outside of core, we should put back
-    # ["host"] since it will always be present.
-    return get_associated_sg_config_data().get("host", "")
+    return get_associated_sg_config_data()["host"]
 
 
 def get_associated_sg_config_data():

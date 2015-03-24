@@ -39,6 +39,7 @@ def get_login_name():
 # user was found, we cannot use a None value to indicate that the cache has not been
 # populated. 
 g_shotgun_user_cache = "unknown"
+g_shotgun_current_user_cache = "unknown"
 
 def get_shotgun_user(sg):
     """
@@ -66,10 +67,6 @@ def get_shotgun_user(sg):
         g_shotgun_user_cache = sg.find_one("HumanUser", filters=[["login", "is", local_login]], fields=fields)
     
     return g_shotgun_user_cache
-        
-
-g_shotgun_current_user_cache = "unknown"
-
 
 def get_current_user(tk):
     """

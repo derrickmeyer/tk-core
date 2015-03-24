@@ -24,7 +24,7 @@ class LoginUiTests(TankTestBase):
         """
         Adds Qt modules to tank.platform.qt and initializes QApplication
         """
-        from tank.platform.qt.qt_abstraction import QtGui
+        from PySide import QtGui
         # Only configure qApp once, it's a singleton.
         if QtGui.qApp is None:
             self._app = QtGui.QApplication(sys.argv)
