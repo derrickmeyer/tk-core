@@ -52,7 +52,7 @@ else:
             pass
 
 
-def generate_session_token(hostname, login, password, http_proxy, shotgun_instance_factory=Shotgun):
+def generate_session_token(hostname, login, password, http_proxy):
     """
     Generates a session token for a given username/password on a given site.
     :param hostname: The host to connect to.
@@ -65,7 +65,7 @@ def generate_session_token(hostname, login, password, http_proxy, shotgun_instan
     """
     try:
         # Create the instance...
-        sg = shotgun_instance_factory(
+        sg = _shotgun_instance_factory(
             hostname,
             login=login,
             password=password,
@@ -282,10 +282,7 @@ def create_authenticated_sg_connection():
     """
     from . import authentication
 
-    connection_information = authentication.get_connection_information()
-    # If no configuration information
-    if authentication.is_script_user_authenticated(connection_information):
-        # create API
-        create_sg_connection_from_script_user(connection_information)
-    else:
-        return _create_or_renew_sg_connection_from_session(connection_information)
+    user = authentication.get_current_user()
+    if not user:
+        raise AuthenticationError("No current Shotgun user available.")
+    return user.create_sg_connection()

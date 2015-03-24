@@ -168,37 +168,26 @@ class AuthenticationManager(object):
         """
         return None
 
-    def get_credentials(self):
-        """
-        Retrieves the credentials for the current user.
-        :returns: A dictionary holding the credentials that were found. Can either contains keys:
-                  - login, session_token
-                  - an empty dictionary.
-                  The dictionary will be empty if no credentials were found.
-        """
-        host = self.get_host()
-        logger.debug("Getting human user credentials for host %s" % host)
-        if not host:
-            logger.debug("No host found!")
-            return {}
-        login_info = self._get_login_info(host)
-        if login_info:
-            logger.debug("Login info found: %s" % login_info)
-            return login_info
+    def get_current_user(self):
+        from . import user
+        info = self.get_connection_information()
+        if self.is_script_user_authenticated(info):
+            return user.ApiScriptUser(**info)
+        elif self.is_human_user_authenticated(info):
+            return user.HumanUser(**info)
         else:
-            logger.debug("Login info not found")
-            return {}
+            return None
 
     def get_connection_information(self):
         """
         Returns a dictionary with connection parameters and user credentials.
-        :returns: A dictionary with keys host, http_proxy and all the keys returned from get_credentials.
+        :returns: A dictionary with keys host, http_proxy and all the keys returned from _get_credentials.
         """
         logger.debug("Getting connection information")
         connection_info = {}
         connection_info["host"] = self.get_host()
         connection_info["http_proxy"] = self.get_http_proxy()
-        connection_info.update(self.get_credentials())
+        connection_info.update(self._get_credentials())
         return connection_info
 
     def logout(self):
@@ -220,14 +209,6 @@ class AuthenticationManager(object):
         """
         return self._has_cached_credentials(self.get_connection_information())
 
-    def _has_cached_credentials(self, connection_information):
-        """
-        Actual implementation of the has_cached_credentials test. This is the method to override in derived classes.
-        :param connection_information: Information used to connect to Shotgun.
-        :returns: True is we are authenticated, False otherwise.
-        """
-        return AuthenticationManager.is_human_user_authenticated(connection_information)
-
     def clear_cached_credentials(self):
         """
         Clears any cached credentials.
@@ -245,6 +226,35 @@ class AuthenticationManager(object):
         self._current_host = host
         # For now, only cache session data to disk.
         self._cache_session_data(host, login, session_token)
+
+    def _has_cached_credentials(self, connection_information):
+        """
+        Actual implementation of the has_cached_credentials test. This is the method to override in derived classes.
+        :param connection_information: Information used to connect to Shotgun.
+        :returns: True is we are authenticated, False otherwise.
+        """
+        return AuthenticationManager.is_human_user_authenticated(connection_information)
+
+    def _get_credentials(self):
+        """
+        Retrieves the credentials for the current user.
+        :returns: A dictionary holding the credentials that were found. Can either contains keys:
+                  - login, session_token
+                  - an empty dictionary.
+                  The dictionary will be empty if no credentials were found.
+        """
+        host = self.get_host()
+        logger.debug("Getting human user credentials for host %s" % host)
+        if not host:
+            logger.debug("No host found!")
+            return {}
+        login_info = self._get_login_info(host)
+        if login_info:
+            logger.debug("Login info found: %s" % login_info)
+            return login_info
+        else:
+            logger.debug("Login info not found")
+            return {}
 
     def _delete_session_data(self):
         """

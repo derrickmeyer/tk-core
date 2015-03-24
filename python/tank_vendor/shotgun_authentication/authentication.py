@@ -50,23 +50,19 @@ def get_http_proxy():
     return AuthenticationManager.get_instance().get_http_proxy()
 
 
-def get_credentials():
-    """
-    Retrieves the credentials for the current user.
-    :returns: A dictionary holding the credentials that were found. Can either contains keys:
-              - login, session_token
-              - an empty dictionary.
-              The dictionary will be empty if no credentials were found.
-    """
-    return AuthenticationManager.get_instance().get_credentials()
-
-
 def get_connection_information():
     """
     Returns a dictionary with connection parameters and user credentials.
-    :returns: A dictionary with keys host, http_proxy and all the keys returned from get_credentials.
+    :returns: A dictionary with keys host, http_proxy and all the keys returned from _get_credentials.
     """
     return AuthenticationManager.get_instance().get_connection_information()
+
+def get_current_user():
+    """
+    Returns a dictionary with connection parameters and user credentials.
+    :returns: A dictionary with keys host, http_proxy and all the keys returned from _get_credentials.
+    """
+    return AuthenticationManager.get_instance().get_current_user()
 
 
 def logout():

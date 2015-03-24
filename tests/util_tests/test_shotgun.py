@@ -455,7 +455,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
     Tests the creation of a session based Shotgun connection.
     """
 
-    @patch("tank_vendor.shotgun_authentication.authentication.get_connection_information")
+    @patch("tank_vendor.shotgun_authentication.authentication_manager.AuthenticationManager.get_connection_information")
     @patch("tank_vendor.shotgun_authentication.connection._create_or_renew_sg_connection_from_session")
     def test_no_script_user_uses_human_user(
         self,
@@ -467,7 +467,9 @@ class TestCreateSessionBasedConnection(TankTestBase):
         _create_or_renew_sg_connection_from_session function.
         """
         config_data = {
-            "host": "https://something.shotgunstudio.com"
+            "host": "https://something.shotgunstudio.com",
+            "login": "some_login",
+            "session_token": "session_token"
         }
         get_connection_information_mock.return_value = config_data
         create_or_renew_sg_connection_from_session_mock.return_value = mockgun.Shotgun(

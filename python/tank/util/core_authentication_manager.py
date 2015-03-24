@@ -66,7 +66,19 @@ class CoreAuthenticationManager(AuthenticationManager):
         """
         return self._core_config_data.get("http_proxy") or super(CoreAuthenticationManager, self).get_http_proxy()
 
-    def get_credentials(self):
+    def _get_script_user_credentials(self):
+        """
+        Returns the script user credentials
+        """
+        if AuthenticationManager.is_script_user_authenticated(self._core_config_data):
+            return {
+                "api_key": self._core_config_data.get("api_key"),
+                "api_script": self._core_config_data.get("api_script")
+            }
+        else:
+            return {}
+
+    def _get_credentials(self):
         """
         Retrieves the credentials for the current user.
         :returns: A dictionary holding the credentials that were found. Can either contains keys:
@@ -79,19 +91,7 @@ class CoreAuthenticationManager(AuthenticationManager):
         if script_user_credentials:
             return script_user_credentials
 
-        return super(CoreAuthenticationManager, self).get_credentials()
-
-    def _get_script_user_credentials(self):
-        """
-        Returns the script user credentials
-        """
-        if AuthenticationManager.is_script_user_authenticated(self._core_config_data):
-            return {
-                "api_key": self._core_config_data.get("api_key"),
-                "api_script": self._core_config_data.get("api_script")
-            }
-        else:
-            return {}
+        return super(CoreAuthenticationManager, self)._get_credentials()
 
     def _has_cached_credentials(self, connection_information):
         """
