@@ -455,6 +455,12 @@ class TestCreateSessionBasedConnection(TankTestBase):
     Tests the creation of a session based Shotgun connection.
     """
 
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
     @patch("tank_vendor.shotgun_authentication.authentication_manager.AuthenticationManager.get_connection_information")
     @patch("tank_vendor.shotgun_authentication.connection.create_or_renew_sg_connection_from_session")
     def test_no_script_user_uses_human_user(
@@ -480,12 +486,12 @@ class TestCreateSessionBasedConnection(TankTestBase):
         # would trigger ui prompts.
         self.assertIsNone(tank.platform.engine.current_engine())
         # Because the credentials are invalid and there is no engine, no connection can be created.
-        connection.create_authenticated_sg_connection()
+        tank.util.shotgun.create_sg_connection()
         # Make sure there was an attempt to authenticate using cache session info.
         self.assertEqual(create_or_renew_sg_connection_from_session_mock.call_count, 1)
 
     @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
-    @patch("tank_vendor.shotgun_authentication.connection._renew_session")
+    @patch("tank_vendor.shotgun_authentication.interactive_authentication.renew_session")
     def test_create_connection_with_session_renewal(self, renew_session_mock, create_sg_connection_from_session_mock):
         """
         When there is no valid session cached, the engine's renew session should take care of the
@@ -508,7 +514,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
         self.assertEqual(id(result), id(new_connection))
 
     @patch("tank_vendor.shotgun_authentication.connection.create_sg_connection_from_session")
-    @patch("tank_vendor.shotgun_authentication.connection._renew_session")
+    @patch("tank_vendor.shotgun_authentication.interactive_authentication.renew_session")
     def test_create_connection_with_session_renewal_failure(self, renew_session_mock, create_sg_connection_from_session_mock):
         """
         When there is no valid session cached, the engine's renew session should take care of the

@@ -316,12 +316,13 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
     Handles ui based authentication.
     """
 
-    def __init__(self, is_session_renewal):
+    def __init__(self, gui_launcher, is_session_renewal):
         """
         Creates the UiAuthenticationHandler object.
         :param is_session_renewal: Boolean indicating if we are renewing a session. True if we are, False otherwise.
         """
         self._is_session_renewal = is_session_renewal
+        self._gui_launcher = gui_launcher
 
     def authenticate(self, hostname, login, http_proxy):
         """

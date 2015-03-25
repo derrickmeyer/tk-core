@@ -16,7 +16,7 @@ from tank_test.tank_test_base import *
 import tank_test
 
 from tank.util.core_authentication_manager import CoreAuthenticationManager
-from tank_vendor.shotgun_authentication import connection
+from tank_vendor.shotgun_authentication import connection, interactive_authentication
 from tank_vendor.shotgun_api3 import shotgun
 
 
@@ -153,7 +153,7 @@ class AuthenticationTests(TankTestBase):
                 thrown.
                 """
                 try:
-                    invoker = connection._create_invoker()
+                    invoker = interactive_authentication._create_invoker()
                     # Make sure we have a QObject derived object and not a regular Python function.
                     if not isinstance(invoker, QtCore.QObject):
                         raise Exception("Invoker is not a QObject")

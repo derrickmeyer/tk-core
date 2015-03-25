@@ -64,4 +64,4 @@ class LoginUiTests(TankTestBase):
         """
         self._prepare_mocks(*args)
 
-        tank_vendor.shotgun_authentication.interactive_authentication.ui_authenticate()
+        tank_vendor.shotgun_authentication.interactive_authentication.authenticate()
