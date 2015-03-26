@@ -79,7 +79,7 @@ def generate_session_token(hostname, login, password, http_proxy):
         raise AuthenticationError("Server %s was not found." % hostname)
     except:
         # We couldn't login, so try again.
-        logging.exception("There was a problem logging in.")
+        logger.exception("There was a problem logging in.")
 
 
 def create_sg_connection_from_session(user):

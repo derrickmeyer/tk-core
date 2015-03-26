@@ -312,13 +312,13 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
     Handles ui based authentication.
     """
 
-    def __init__(self, gui_launcher, is_session_renewal):
+    def __init__(self, is_session_renewal, gui_launcher=None):
         """
         Creates the UiAuthenticationHandler object.
         :param is_session_renewal: Boolean indicating if we are renewing a session. True if we are, False otherwise.
         """
         self._is_session_renewal = is_session_renewal
-        self._gui_launcher = gui_launcher
+        self._gui_launcher = gui_launcher or (lambda f: f())
 
     def authenticate(self, hostname, login, http_proxy):
         """
@@ -390,7 +390,7 @@ def _authentication_loop(user, session_token, credentials_handler):
 
         # Do not save credentials for a user that exists only for this process (when loaded from a context for example)
         user.set_session_token(session_token)
-        if user.is_saveable():
+        if not user.is_volatile():
             authentication_manager._cache_session_data(
                 user.get_host(), user.get_login(), user.get_session_token()
             )
@@ -408,23 +408,9 @@ def _ui_renew_session(user, session_token, gui_launcher=None):
         session_token,
         UiAuthenticationHandler(
             is_session_renewal=True,
-            gui_launcher=gui_launcher or (lambda func: func())
-        ))
-
-
-def _ui_authenticate(gui_launcher=None):
-    """
-    Authenticates the current process. Authentication can be done through script user authentication
-    or human user authentication. If doing human user authentication and there is no session cached, a
-    dialgo asking for user credentials will appear.
-    :param gui_launcher: Function that will launch the gui. The function will be receiving a callable object
-                         which will take care of invoking the gui in the right thread. If None, the gui will
-                         be launched in the current thread.
-    """
-    _authentication_loop(UiAuthenticationHandler(
-        is_session_renewal=False,
-        gui_launcher=gui_launcher or (lambda func: func())
-    ))
+            gui_launcher=gui_launcher
+        )
+    )
 
 
 def _console_renew_session(user, session_token):
@@ -434,17 +420,17 @@ def _console_renew_session(user, session_token):
     _authentication_loop(user, session_token, ConsoleRenewSessionHandler())
 
 
-def renew_session(user):
+def renew_session(user, session_token):
     QtCore, QtGui, has_ui = _get_qt_state()
     # If we have a gui, we need gui based authentication
     if has_ui:
         # If we are renewing for a background thread, use the invoker
         if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            _ui_renew_session(user, _create_invoker())
+            _ui_renew_session(user, session_token, _create_invoker())
         else:
-            _ui_renew_session(user)
+            _ui_renew_session(user, session_token)
     else:
-        _console_renew_session(user)
+        _console_renew_session(user, session_token)
 
 
 def authenticate(host, login, http_proxy):
@@ -453,7 +439,7 @@ def authenticate(host, login, http_proxy):
     if has_ui:
         # If we are renewing for a background thread, use the invoker
         if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            authenticator = UiAuthenticationHandler(is_session_renewal=False, gui_lancher=_create_invoker())
+            authenticator = UiAuthenticationHandler(is_session_renewal=False, gui_launcher=_create_invoker())
         else:
             authenticator = UiAuthenticationHandler(is_session_renewal=False)
     else:

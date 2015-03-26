@@ -8,6 +8,8 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import pickle
+
 
 class ShotgunUser(object):
     def __init__(self, host, http_proxy=None):
@@ -24,7 +26,15 @@ class ShotgunUser(object):
         self.__class__._not_implemented("create_sg_connection")
 
     def serialize(self):
-        self.__class__._not_implemented("serialize")
+        payload = {
+            "type": self.__class__.__name__,
+            "data": {
+                "http_proxy": self._http_proxy,
+                "host": self._host
+            }
+        }
+        self._serialize(payload["data"])
+        return pickle.dumps(payload)
 
     def get_user_info(self):
         self.__class__._not_implemented("get_user_info")
@@ -40,12 +50,13 @@ class ShotgunUser(object):
         )
 
 
-class HumanUser(ShotgunUser):
+class SessionUser(ShotgunUser):
     def __init__(self, host, login, session_token, http_proxy=None):
-        super(HumanUser, self).__init__(host, http_proxy)
+        super(SessionUser, self).__init__(host, http_proxy)
 
         self._login = login
         self._session_token = session_token
+        self._is_volatile = False
 
     def get_login(self):
         return self._login
@@ -56,6 +67,29 @@ class HumanUser(ShotgunUser):
     def create_sg_connection(self):
         from . import connection
         return connection.create_or_renew_sg_connection_from_session(self)
+
+    def set_volatile(self):
+        self._is_volatile = True
+
+    def is_volatile(self):
+        return self._is_volatile
+
+    def _serialize(self, data):
+        data["login"] = self._login
+        data["session_token"] = self._session_token
+        data["is_volatile"] = self._is_volatile
+
+    @staticmethod
+    def deserialize(representation):
+        user = SessionUser(
+            host=representation["host"],
+            http_proxy=representation["http_proxy"],
+            login=representation["login"],
+            session_token=representation["session_token"]
+        )
+        if representation["is_volatile"]:
+            user.set_volatile()
+        return user
 
 
 class ApiScriptUser(ShotgunUser):
@@ -74,9 +108,33 @@ class ApiScriptUser(ShotgunUser):
             "api_key": self._api_key
         })
 
+    def _serialize(self, data):
+        data["api_script"] = self._api_script
+        data["api_key"] = self._api_key
+
+    @staticmethod
+    def deserialize(representation):
+        return ApiScriptUser(**representation)
+
+
 def is_script_user(sg_user):
     return isinstance(sg_user, ApiScriptUser)
 
 
-def is_human_user(sg_user):
-    return isinstance(sg_user, HumanUser)
+def is_session_user(sg_user):
+    return isinstance(sg_user, SessionUser)
+
+
+__factories = {
+    SessionUser.__name__: SessionUser.deserialize,
+    ApiScriptUser.__name__: ApiScriptUser.deserialize
+}
+
+
+def deserialize(payload):
+    representation = pickle.loads(payload)
+    global __factories
+    factory = __factories.get(representation["type"])
+    if not factory:
+        raise Exception("Invalid user representation: %s" % representation)
+    return factory(representation["data"])

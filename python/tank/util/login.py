@@ -94,7 +94,7 @@ def get_current_user(tk):
         # If we have a script user, try to find a matching user using the os user name.
         # call hook to get current login
         current_login = tk.execute_core_hook(constants.CURRENT_LOGIN_HOOK_NAME)
-    elif sg_auth.is_human_user(user):
+    elif sg_auth.is_session_user(user):
         # If we have a human user, simply use the login value.
         current_login = user.get_login()
     else:

@@ -1,5 +1,4 @@
 from . import interactive_authentication
-from . import authentication
 from . import authentication_manager
 from . import user
 from .errors import AuthenticationModuleError, AuthenticationError, AuthenticationDisabled
@@ -49,12 +48,15 @@ class ShotgunAuthenticator(object):
         """
         Returns the currently saved user.
 
-        :returns: AuthenticatedUser object or None if no saved user has been defined.
+        :returns: AuthenticatedUser object or None if no saved user has been found.
         """
         host = self._defaults_manager.get_host()
+        # No default host, no so saved user can be found.
+        if not host:
+            return None
         credentials = authentication_manager._get_login_info(host)
         if credentials:
-            return user.HumanUser(
+            return user.SessionUser(
                 host=host,
                 http_proxy=self._defaults_manager.get_http_proxy(),
                 **credentials
@@ -62,18 +64,18 @@ class ShotgunAuthenticator(object):
         else:
             return None
 
-    def save_user(self, user):
+    def save_user(self, sg_user):
         """
         Sets the saved user.
 
         :param user: Specifying a user to be the current user.
         """
-        if is_script_user(user):
+        if user.is_script_user(sg_user):
             raise AuthenticationError("Can't save ApiScriptUser in session cache.")
         authentication_manager._cache_session_data(
-            user.get_host(),
-            user.get_login(),
-            user.get_session_token()
+            sg_user.get_host(),
+            sg_user.get_login(),
+            sg_user.get_session_token()
         )
 
     def clear_saved_user(self):
@@ -92,12 +94,12 @@ class ShotgunAuthenticator(object):
 
         :returns: AuthenticatedUser object or None if the user cancelled.
         """
-        host, login, session_token = interactive_authentication.ConsoleLoginHandler().authenticate(
+        host, login, session_token = interactive_authentication.authenticate(
             self._defaults_manager.get_host(),
             self._defaults_manager.get_login(),
             self._defaults_manager.get_http_proxy()
         )
-        return user.HumanUser(
+        return user.SessionUser(
             host=host,
             http_proxy=self._defaults_manager.get_http_proxy(),
             login=login, session_token=session_token

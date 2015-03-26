@@ -231,9 +231,9 @@ class AuthenticationManager(object):
         :param connection_information: Information used to connect to Shotgun.
         :returns: True is we are using a session, False otherwise.
         """
-        is_human_user = "login" in connection_information and "session_token" in connection_information
-        logger.debug("is_human_user: %s" % is_human_user)
-        return is_human_user
+        is_session_user = "login" in connection_information and "session_token" in connection_information
+        logger.debug("is_session_user: %s" % is_session_user)
+        return is_session_user
 
     @staticmethod
     def is_script_user_authenticated(connection_information):

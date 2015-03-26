@@ -22,4 +22,4 @@ from . import connection
 from .errors import *
 from .shotgun_authenticator import ShotgunAuthenticator
 from .defaults_manager import DefaultsManager
-from .user import is_script_user, is_human_user
+from .user import is_script_user, is_session_user, deserialize as deserialize_user
