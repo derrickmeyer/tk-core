@@ -20,7 +20,7 @@ import threading
 import os
 import sys
 from .errors import AuthenticationError, AuthenticationDisabled
-from . import authentication
+from . import authentication_manager
 from . import connection
 
 
@@ -261,7 +261,7 @@ class ConsoleAuthenticationHandlerBase(AuthenticationHandlerBase):
 
     def _get_session_token(self, hostname, login, password, http_proxy):
         """
-        Retrieves a session token for the given credentials.
+        Retrieves a session token for the given credentials. If it fails, the user is informed
         :param hostname: The host to connect to.
         :param login: The user to get a session for.
         :param password: Password for the user.
@@ -272,10 +272,6 @@ class ConsoleAuthenticationHandlerBase(AuthenticationHandlerBase):
         if not token:
             print "Login failed."
         return token
-        try:
-            return connection.generate_session_token(hostname, login, password, http_proxy)
-        except AuthenticationError:
-            return None
 
 
 class ConsoleRenewSessionHandler(ConsoleAuthenticationHandlerBase):
@@ -357,39 +353,33 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
         return result
 
 
-def _authentication_loop(credentials_handler, force_authentication=False):
+def _authentication_loop(user, session_token, credentials_handler):
     """
     Common login logic, regardless of how we are actually logging in. It will first try to reuse
     any existing session and if that fails then it will ask for credentials and upon success
     the credentials will be cached.
-    :param force_authentication: Forces the authentication.
     :raises: TankAuthenticationError Thrown if the authentication is cancelled.
     :raises: TankAuthenticationDisabled Thrown if authentication was cancelled before.
     """
     logger.debug("About to take the authentication lock.")
     with AuthenticationHandlerBase._authentication_lock:
-        logger.debug("Took the authentication lock.")
-        connection_information = authentication.get_connection_information()
 
-        # If we are authenticated as a script user, there's no point trying to authenticate
-        # as a human user, it has precedence.
-        if authentication.is_script_user_authenticated(connection_information):
-            return
-        # If we already have a cached session on file, we'll consider ourselves as authenticated,
-        # unless someone is forcing authentication (in the case of a renew)
-        elif authentication.is_human_user_authenticated(connection_information) and not force_authentication:
-            return
+        # If somebody refreshed the session token on the user object since we tried with
+        # the session token.
+        if user.get_session_token() != session_token:
+            return None
+        logger.debug("Took the authentication lock.")
         # If somebody disabled authentication, we're done here as well.
-        elif AuthenticationHandlerBase._authentication_disabled:
+        if AuthenticationHandlerBase._authentication_disabled:
             raise AuthenticationDisabled()
 
         try:
             logger.debug("Not authenticated, requesting user input.")
             # Do the actually credentials prompting and authenticating.
             hostname, login, session_token = credentials_handler.authenticate(
-                connection_information["host"],
-                connection_information.get("login", get_login_name()),
-                connection_information.get("http_proxy")
+                user.get_host(),
+                user.get_login(),
+                user.get_http_proxy()
             )
         except AuthenticationError:
             AuthenticationHandlerBase._authentication_disabled = True
@@ -398,21 +388,28 @@ def _authentication_loop(credentials_handler, force_authentication=False):
 
         logger.debug("Login successful!")
 
-        # Cache the credentials so subsequent session based logins can reuse the session id.
-        authentication.cache_connection_information(hostname, login, session_token)
+        # Do not save credentials for a user that exists only for this process (when loaded from a context for example)
+        user.set_session_token(session_token)
+        if user.is_saveable():
+            authentication_manager._cache_session_data(
+                user.get_host(), user.get_login(), user.get_session_token()
+            )
 
 
-def _ui_renew_session(gui_launcher=None):
+def _ui_renew_session(user, session_token, gui_launcher=None):
     """
     Prompts the user to enter his password in a dialog to retrieve a new session token.
     :param gui_launcher: Function that will launch the gui. The function will be receiving a callable object
                          which will take care of invoking the gui in the right thread. If None, the gui will
                          be launched in the current thread.
     """
-    _authentication_loop(UiAuthenticationHandler(
-        is_session_renewal=True,
-        gui_launcher=gui_launcher or (lambda func: func())
-    ), force_authentication=True)
+    _authentication_loop(
+        user,
+        session_token,
+        UiAuthenticationHandler(
+            is_session_renewal=True,
+            gui_launcher=gui_launcher or (lambda func: func())
+        ))
 
 
 def _ui_authenticate(gui_launcher=None):
@@ -430,54 +427,35 @@ def _ui_authenticate(gui_launcher=None):
     ))
 
 
-def _console_renew_session():
+def _console_renew_session(user, session_token):
     """
     Prompts the user to enter his password on the command line to retrieve a new session token.
     """
-    _authentication_loop(ConsoleRenewSessionHandler(), force_authentication=True)
+    _authentication_loop(user, session_token, ConsoleRenewSessionHandler())
 
 
-def _console_authenticate():
-    """
-    Authenticates the current process. Authentication can be done through script user authentication
-    or human user authentication. If doing human user authentication and there is no session cached, the
-    user credentials will be retrieved from the console.
-    """
-    _authentication_loop(ConsoleLoginHandler())
-
-
-def console_logout():
-    """
-    Logs out of the currently cached session and prints whether it worked or not.
-    """
-    connection_info = authentication.logout()
-    if connection_info:
-        print "Succesfully logged out of", connection_info["host"]
-    else:
-        print "Not logged in."
-
-
-def renew_session():
+def renew_session(user):
     QtCore, QtGui, has_ui = _get_qt_state()
     # If we have a gui, we need gui based authentication
     if has_ui:
         # If we are renewing for a background thread, use the invoker
         if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            _ui_renew_session(_create_invoker())
+            _ui_renew_session(user, _create_invoker())
         else:
-            _ui_renew_session()
+            _ui_renew_session(user)
     else:
-        _console_renew_session()
+        _console_renew_session(user)
 
 
-def authenticate():
+def authenticate(host, login, http_proxy):
     QtCore, QtGui, has_ui = _get_qt_state()
     # If we have a gui, we need gui based authentication
     if has_ui:
         # If we are renewing for a background thread, use the invoker
         if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            _ui_authenticate(_create_invoker())
+            authenticator = UiAuthenticationHandler(is_session_renewal=False, gui_lancher=_create_invoker())
         else:
-            _ui_authenticate()
+            authenticator = UiAuthenticationHandler(is_session_renewal=False)
     else:
-        _console_authenticate()
+        authenticator = ConsoleLoginHandler()
+    return authenticator.authenticate(host, login, http_proxy)

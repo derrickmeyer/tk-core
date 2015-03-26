@@ -18,7 +18,7 @@ class ShotgunUser(object):
         return self._host
 
     def get_http_proxy(self):
-        return self._proxy
+        return self._http_proxy
 
     def create_sg_connection_from_script_usern(self):
         self.__class__._not_implemented("create_sg_connection")
@@ -50,14 +50,12 @@ class HumanUser(ShotgunUser):
     def get_login(self):
         return self._login
 
+    def get_session_token(self):
+        return self._session_token
+
     def create_sg_connection(self):
         from . import connection
-        return connection.create_or_renew_sg_connection_from_session({
-            "host": self._host,
-            "http_proxy": self._http_proxy,
-            "login": self._login,
-            "session_token": self._session_token
-        })
+        return connection.create_or_renew_sg_connection_from_session(self)
 
 
 class ApiScriptUser(ShotgunUser):
@@ -75,3 +73,10 @@ class ApiScriptUser(ShotgunUser):
             "api_script": self._api_script,
             "api_key": self._api_key
         })
+
+def is_script_user(sg_user):
+    return isinstance(sg_user, ApiScriptUser)
+
+
+def is_human_user(sg_user):
+    return isinstance(sg_user, HumanUser)

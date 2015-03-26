@@ -23,14 +23,14 @@ from tank_vendor import yaml
 # use api json to cover py 2.5
 from tank_vendor import shotgun_api3
 json = shotgun_api3.shotgun.json
-from tank_vendor import shotgun_authentication as sg_auth
+from tank_vendor.shotgun_authentication import ShotgunAuthenticator, connection, AuthenticationModuleError
 
-from ..errors import TankError
+from ..errors import TankError, TankAuthenticationError
 from .. import hook
 from ..platform import constants
 from . import login
+from .defaults_manager import DefaultsManager
 
-from tank.errors import TankAuthenticationError
 
 
 def __get_api_core_config_location():
@@ -202,14 +202,21 @@ def __create_sg_connection(config_data=None):
     try:
         if config_data:
             # Credentials were passed in, so let's run the legacy authentication mechanism for script user.
-            sg = sg_auth.connection.create_sg_connection_from_script_user(config_data)
+            sg = connection.create_sg_connection_from_script_user(config_data)
         else:
+            from .. import api
             # We're not running any special code for Psyop, so run the new Toolkit authentication code.
-            user = sg_auth.get_current_user()
+
+            user = api.get_current_user()
             if not user:
-                raise sg_auth.AuthenticationError("No current Shotgun user available.")
+                sa = ShotgunAuthenticator(DefaultsManager())
+                # This is needed for backwards compatibility with scripts that were written before
+                # authentication was put in place.
+                user = sa.get_user()
+            if not user:
+                raise TankAuthenticationError("No current Shotgun user available.")
             return user.create_sg_connection()
-    except sg_auth.AuthenticationModuleError, e:
+    except AuthenticationModuleError, e:
         raise TankAuthenticationError(str(e))
 
     # bolt on our custom user agent manager

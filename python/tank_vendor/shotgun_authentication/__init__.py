@@ -19,5 +19,7 @@ credentials are reused if available.
 """
 
 from . import connection
-
-from .api import *
+from .errors import *
+from .shotgun_authenticator import ShotgunAuthenticator
+from .defaults_manager import DefaultsManager
+from .user import is_script_user, is_human_user

@@ -73,6 +73,102 @@ class ActivationError(Exception):
     pass
 
 
+def _delete_session_data(host):
+    """
+    Clears the session cache for the current site.
+    """
+    if not host:
+        logger.error("Current host not set, nothing to clear.")
+        return
+    logger.debug("Clearing session cached on disk.")
+    try:
+        info_path = _get_login_info_location(host)
+        if os.path.exists(info_path):
+            logger.debug("Session file found.")
+            os.remove(info_path)
+            logger.debug("Session cleared.")
+        else:
+            logger.debug("Session file not found: %s", info_path)
+    except:
+        logger.exception("Couldn't delete the site cache file")
+
+
+def _get_login_info(base_url):
+    """
+    Returns the cached login info if found.
+    :param base_url: The site we want the login information for.
+    :returns: Returns a dictionary with keys login and session_token or None
+    """
+    # Retrieve the location of the cached info
+    info_path = _get_login_info_location(base_url)
+    # Nothing was cached, return an empty dictionary.
+    if not os.path.exists(info_path):
+        logger.debug("No cache found at %s" % info_path)
+        return None
+    try:
+        # Read the login information
+        config = SafeConfigParser({"login": None, "session_token": None})
+        config.read(info_path)
+        if not config.has_section("LoginInfo"):
+            logger.debug("No Login info was found")
+            return None
+
+        login = config.get("LoginInfo", "login", raw=True)
+        session_token = config.get("LoginInfo", "session_token", raw=True)
+
+        if not login or not session_token:
+            logger.debug("Incomplete settings (login:%s, session_token:%s)" % (login, session_token))
+            return None
+
+        return {"login": login, "session_token": session_token}
+    except Exception:
+        logger.exception("Exception thrown while loading cached session info.")
+        return None
+
+
+def _get_login_info_location(base_url):
+    """
+    Returns the location of the session file on disk for a specific site.
+    :param base_url: The site we want the login information for.
+    :returns: Path to the login information.
+    """
+    return os.path.join(
+        _get_local_site_cache_location(base_url),
+        "authentication",
+        "login.ini"
+    )
+
+
+def _cache_session_data(host, login, session_token):
+    """
+    Caches the session data for a site and a user.
+    :param host: Site we want to cache a session for.
+    :param login: User we want to cache a session for.
+    :param session_token: Session token we want to cache.
+    """
+    # Retrieve the cached info file location from the host
+    info_path = _get_login_info_location(host)
+
+    # make sure the info_dir exists!
+    info_dir, info_file = os.path.split(info_path)
+    if not os.path.exists(info_dir):
+        os.makedirs(info_dir, 0700)
+
+    logger.debug("Caching login info at %s...", info_path)
+    # Create a document with the following format:
+    # [LoginInfo]
+    # login=username
+    # session_token=some_unique_id
+    config = SafeConfigParser()
+    config.add_section("LoginInfo")
+    config.set("LoginInfo", "login", login)
+    config.set("LoginInfo", "session_token", session_token)
+    # Write it to disk.
+    with open(info_path, "w") as configfile:
+        config.write(configfile)
+    logger.debug("Cached!")
+
+
 class AuthenticationManager(object):
     """
     Manages authentication information.
@@ -204,7 +300,7 @@ class AuthenticationManager(object):
         Clears any cached credentials.
         """
         self._current_host = None
-        self._delete_session_data()
+        _delete_session_data(self.get_host())
 
     def cache_connection_information(self, host, login, session_token):
         """
@@ -215,7 +311,7 @@ class AuthenticationManager(object):
         """
         self._current_host = host
         # For now, only cache session data to disk.
-        self._cache_session_data(host, login, session_token)
+        _cache_session_data(host, login, session_token)
 
     def _has_cached_credentials(self, connection_information):
         """
@@ -238,103 +334,10 @@ class AuthenticationManager(object):
         if not host:
             logger.debug("No host found!")
             return {}
-        login_info = self._get_login_info(host)
+        login_info = _get_login_info(host)
         if login_info:
             logger.debug("Login info found: %s" % login_info)
             return login_info
         else:
             logger.debug("Login info not found")
             return {}
-
-    def _delete_session_data(self):
-        """
-        Clears the session cache for the current site.
-        """
-        host = self.get_host()
-        if not host:
-            logger.error("Current host not set, nothing to clear.")
-            return
-        logger.debug("Clearing session cached on disk.")
-        try:
-            info_path = self._get_login_info_location(host)
-            if os.path.exists(info_path):
-                logger.debug("Session file found.")
-                os.remove(info_path)
-                logger.debug("Session cleared.")
-            else:
-                logger.debug("Session file not found: %s", info_path)
-        except:
-            logger.exception("Couldn't delete the site cache file")
-
-    def _get_login_info(self, base_url):
-        """
-        Returns the cached login info if found.
-        :param base_url: The site we want the login information for.
-        :returns: Returns a dictionary with keys login and session_token or None
-        """
-        # Retrieve the location of the cached info
-        info_path = self._get_login_info_location(base_url)
-        # Nothing was cached, return an empty dictionary.
-        if not os.path.exists(info_path):
-            logger.debug("No cache found at %s" % info_path)
-            return None
-        try:
-            # Read the login information
-            config = SafeConfigParser({"login": None, "session_token": None})
-            config.read(info_path)
-            if not config.has_section("LoginInfo"):
-                logger.debug("No Login info was found")
-                return None
-
-            login = config.get("LoginInfo", "login", raw=True)
-            session_token = config.get("LoginInfo", "session_token", raw=True)
-
-            if not login or not session_token:
-                logger.debug("Incomplete settings (login:%s, session_token:%s)" % (login, session_token))
-                return None
-
-            return {"login": login, "session_token": session_token}
-        except Exception:
-            logger.exception("Exception thrown while loading cached session info.")
-            return None
-
-    def _get_login_info_location(self, base_url):
-        """
-        Returns the location of the session file on disk for a specific site.
-        :param base_url: The site we want the login information for.
-        :returns: Path to the login information.
-        """
-        return os.path.join(
-            _get_local_site_cache_location(base_url),
-            "authentication",
-            "login.ini"
-        )
-
-    def _cache_session_data(self, host, login, session_token):
-        """
-        Caches the session data for a site and a user.
-        :param host: Site we want to cache a session for.
-        :param login: User we want to cache a session for.
-        :param session_token: Session token we want to cache.
-        """
-        # Retrieve the cached info file location from the host
-        info_path = self._get_login_info_location(host)
-
-        # make sure the info_dir exists!
-        info_dir, info_file = os.path.split(info_path)
-        if not os.path.exists(info_dir):
-            os.makedirs(info_dir, 0700)
-
-        logger.debug("Caching login info at %s...", info_path)
-        # Create a document with the following format:
-        # [LoginInfo]
-        # login=username
-        # session_token=some_unique_id
-        config = SafeConfigParser()
-        config.add_section("LoginInfo")
-        config.set("LoginInfo", "login", login)
-        config.set("LoginInfo", "session_token", session_token)
-        # Write it to disk.
-        with open(info_path, "w") as configfile:
-            config.write(configfile)
-        logger.debug("Cached!")

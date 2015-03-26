@@ -21,9 +21,8 @@ from tank.deploy.tank_commands.clone_configuration import clone_pipeline_configu
 from tank.deploy import tank_command
 from tank.deploy.tank_commands.core_upgrade import TankCoreUpgrader
 from tank.deploy.tank_commands.action_base import Action
-from tank.util import shotgun
-from tank.util.interactive_authentication import console_logout
-from tank_vendor.shotgun_authentication import get_user, AuthenticationModuleError
+from tank.util import shotgun, DefaultsManager
+from tank_vendor.shotgun_authentication import ShotgunAuthenticator, AuthenticationModuleError
 from tank.platform import engine
 from tank import pipelineconfig_utils
 
@@ -1141,10 +1140,16 @@ if __name__ == "__main__":
 
         # If the user is trying to logout, try to do so
         if "logout" in cmd_line:
-            console_logout()
+            sa = ShotgunAuthenticator(DefaultsManager())
+            user = sa.get_saved_user()
+            if user:
+                sa.clear_saved_user()
+                logger.info("Succesfully logged out from %s." % user.get_host())
+            else:
+                logger.info("Not logged in.")
             sys.exit()
         else:
-            user = get_user()
+            tank.set_current_user(ShotgunAuthenticator(DefaultsManager()).get_user())
 
         if len(cmd_line) == 0:
             # > tank, no arguments

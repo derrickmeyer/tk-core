@@ -82,7 +82,7 @@ def generate_session_token(hostname, login, password, http_proxy):
         logging.exception("There was a problem logging in.")
 
 
-def create_sg_connection_from_session(connection_information):
+def create_sg_connection_from_session(user):
     """
     Tries to auto login to the site using the existing session_token that was saved.
     :param connection_information: Authentication credentials.
@@ -91,17 +91,13 @@ def create_sg_connection_from_session(connection_information):
     """
     logger.debug("Trying to create a connection from a connection information.")
 
-    if "login" not in connection_information or "session_token" not in connection_information:
-        logger.debug("Nothing was cached.")
-        return None
-
     # Try to refresh the data
     logger.debug("Validating token.")
 
     sg = _validate_session_token(
-        connection_information["host"],
-        connection_information["session_token"],
-        connection_information.get("http_proxy"),
+        user.get_host(),
+        user.get_session_token(),
+        user.get_http_proxy(),
     )
     if sg:
         logger.debug("Token is still valid!")
@@ -153,7 +149,7 @@ def create_sg_connection_from_script_user(connection_information):
     )
 
 
-def create_or_renew_sg_connection_from_session(connection_information):
+def create_or_renew_sg_connection_from_session(user):
     """
     Creates a shotgun connection using the current session token or a new one if the old one
     expired.
@@ -164,24 +160,22 @@ def create_or_renew_sg_connection_from_session(connection_information):
     logger.debug("Creating connection with cached session token.")
     # If the Shotgun login was not automated, then try to create a Shotgun
     # instance from the cached session id.
-    sg = create_sg_connection_from_session(connection_information)
+    original_session_token = user.get_session_token()
+    sg = create_sg_connection_from_session(user)
     # If worked, just return the result.
     if sg:
         return sg
 
-    from . import authentication
     from . import interactive_authentication
 
     try:
         logger.debug("Credentials were out of date, renewing them.")
-        interactive_authentication.renew_session()
-        sg = create_sg_connection_from_session(
-            authentication.get_connection_information()
-        )
+        interactive_authentication.renew_session(user, original_session_token)
+        sg = create_sg_connection_from_session(user)
         if not sg:
             raise AuthenticationError("Authentication failed.")
     except:
-        # If the authentication failed, clear the cached credentials. Only do it here instead of befor
+        # If the authentication failed, clear the cached credentials. Only do it here instead of before
         # the renewal otherwise multiple threads who are about to ask for credentials might clear
         # the newer credentials that another thread cached.
         authentication.clear_cached_credentials()
