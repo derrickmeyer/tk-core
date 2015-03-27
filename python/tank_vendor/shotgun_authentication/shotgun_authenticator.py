@@ -10,6 +10,7 @@
 
 from . import interactive_authentication
 from . import user
+from . import session_cache
 from .defaults_manager import DefaultsManager
 
 
@@ -104,43 +105,62 @@ class ShotgunAuthenticator(object):
             self._defaults_manager.get_login(),
             self._defaults_manager.get_http_proxy()
         )
-        return user.SessionUser(
-            host=host,
-            http_proxy=self._defaults_manager.get_http_proxy(),
-            login=login, session_token=session_token
+        return self.create_session_user(
+            login, session_token,
+            host, self._defaults_manager.get_http_proxy()
         )
 
-    def create_human_user(self, login, session_token=None, password=None, host=None):
+    def create_session_user(self, login, session_token=None, password=None, host=None, http_proxy=None):
         """
         Create an AuthenticatedUser given a set of human user credentials.
-        Either a password or session token must be supplied.
+        Either a password or session token must be supplied. If a password is supplied,
+        a session token will be generated for security reasons.
 
         :param login: Shotgun user login
         :param session_token: Shotgun session token
         :param password: Shotgun password
-        :param host: Shotgun host to log in to. Depending on how the authenticator
-                     is configured, this may be required or optional. If the
-                     authenticator is configured so that it is connected to
-                     a specific shotgun site, this parameter is not necessary, however
-                     if it is configured by
-        """
-        pass
+        :param host: Shotgun host to log in to. If None, the default host will be used.
+        :param http_proxy: Shotgun proxy to use. If None, the default http proxy will be used.
 
-    def create_script_user(self, script_user, script_key, host=None):
+        :returns: A ShotgunUser derived instance.
+        """
+        # Get the defaults is arguments were None.
+        host = host or self._defaults_manager.get_host()
+        http_proxy = http_proxy or self._defaults_manager.get_http_proxy()
+
+        # If we only have a password, generate a session token.
+        if password and not session_token:
+            session_token = session_cache.generate_session_token(host, login, password, http_proxy)
+
+        # Create a session user
+        return user.SessionUser(host, login, session_token, http_proxy)
+
+    def create_script_user(self, script_user, script_key, host=None, http_proxy=None):
         """
         Create an AuthenticatedUser given a set of script credentials.
 
         :param script_user: Shotgun script user
         :param script_key: Shotgun script key
-        :param host: Shotgun host to log in to. Depending on how the authenticator
-                     is configured, this may be required or optional. If the
-                     authenticator is configured so that it is connected to
-                     a specific shotgun site, this parameter is not necessary, however
-                     if it is configured by
+        :param host: Shotgun host to log in to. If None, the default host will be used.
+        :param http_proxy: Shotgun proxy to use. If None, the default http proxy will be used.
+
+        :returns: A ShotgunUser derived instance.
         """
-        pass
+        return user.ScriptUser(
+            host or self._defaults_manager.get_host(),
+            http_proxy or self._defaults_manager.get_http_proxy(),
+            script_user,
+            script_key
+        )
 
     def get_user(self):
+        """
+        This method will always return a valid user. It will first ask for the default user to the
+        defaults manager. If no user is returned, then a saved user will be retrieved for the default
+        host. If none is found, the user will be prompted to enter login information.
+
+        :returns: A ShotgunUser derived instance.
+        """
         user = self._defaults_manager.get_user() or self.get_saved_user()
         if user:
             return user

@@ -81,6 +81,10 @@ def _create_invoker():
     if not QtCore or not QtGui or not has_ui:
         return lambda fn, *args, **kwargs: fn(*args, **kwargs)
 
+    # If we are already in the main thread, no need for an invoker, invoke directly in this thread.
+    if QtCore.QThread.currentThread() == QtGui.QApplication.instance().thread():
+        return lambda f: f()
+
     class MainThreadInvoker(QtCore.QObject):
         """
         Class that allows sending message to the main thread.
@@ -125,23 +129,6 @@ def _create_invoker():
                 self._exception = e
 
     return MainThreadInvoker()
-
-
-def get_login_name():
-    """
-    Retrieves the login name of the current user.
-    Returns None if no login name was found
-    """
-    if sys.platform == "win32":
-        # http://stackoverflow.com/questions/117014/how-to-retrieve-name-of-current-windows-user-ad-or-local-using-python
-        return os.environ.get("USERNAME", None)
-    else:
-        try:
-            import pwd
-            pwd_entry = pwd.getpwuid(os.geteuid())
-            return pwd_entry[0]
-        except:
-            return None
 
 
 class AuthenticationHandlerBase(object):
@@ -311,13 +298,13 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
     Handles ui based authentication.
     """
 
-    def __init__(self, is_session_renewal, gui_launcher=None):
+    def __init__(self, is_session_renewal):
         """
         Creates the UiAuthenticationHandler object.
         :param is_session_renewal: Boolean indicating if we are renewing a session. True if we are, False otherwise.
         """
         self._is_session_renewal = is_session_renewal
-        self._gui_launcher = gui_launcher or (lambda f: f())
+        self._gui_launcher = _create_invoker()
 
     def authenticate(self, hostname, login, http_proxy):
         """
@@ -352,7 +339,7 @@ class UiAuthenticationHandler(AuthenticationHandlerBase):
         return result
 
 
-def _authentication_loop(user, session_token, credentials_handler):
+def _renew_session(user, session_token, credentials_handler):
     """
     Common login logic, regardless of how we are actually logging in. It will first try to reuse
     any existing session and if that fails then it will ask for credentials and upon success
@@ -398,20 +385,14 @@ def _authentication_loop(user, session_token, credentials_handler):
             )
 
 
-def _ui_renew_session(user, session_token, gui_launcher=None):
+def _ui_renew_session(user, session_token):
     """
     Prompts the user to enter his password in a dialog to retrieve a new session token.
-    :param gui_launcher: Function that will launch the gui. The function will be receiving a callable object
-                         which will take care of invoking the gui in the right thread. If None, the gui will
-                         be launched in the current thread.
     """
-    _authentication_loop(
+    _renew_session(
         user,
         session_token,
-        UiAuthenticationHandler(
-            is_session_renewal=True,
-            gui_launcher=gui_launcher
-        )
+        UiAuthenticationHandler(is_session_renewal=True)
     )
 
 
@@ -419,7 +400,7 @@ def _console_renew_session(user, session_token):
     """
     Prompts the user to enter his password on the command line to retrieve a new session token.
     """
-    _authentication_loop(user, session_token, ConsoleRenewSessionHandler())
+    _renew_session(user, session_token, ConsoleRenewSessionHandler())
 
 
 def renew_session(user, session_token):
@@ -427,11 +408,7 @@ def renew_session(user, session_token):
     QtCore, QtGui, has_ui = _get_qt_state()
     # If we have a gui, we need gui based authentication
     if has_ui:
-        # If we are renewing for a background thread, use the invoker
-        if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            _ui_renew_session(user, session_token, _create_invoker())
-        else:
-            _ui_renew_session(user, session_token)
+        _ui_renew_session(user, session_token)
     else:
         _console_renew_session(user, session_token)
 
@@ -441,10 +418,7 @@ def authenticate(host, login, http_proxy):
     # If we have a gui, we need gui based authentication
     if has_ui:
         # If we are renewing for a background thread, use the invoker
-        if QtCore.QThread.currentThread() != QtGui.QApplication.instance().thread():
-            authenticator = UiAuthenticationHandler(is_session_renewal=False, gui_launcher=_create_invoker())
-        else:
-            authenticator = UiAuthenticationHandler(is_session_renewal=False)
+        authenticator = UiAuthenticationHandler(is_session_renewal=False)
     else:
         authenticator = ConsoleLoginHandler()
     return authenticator.authenticate(host, login, http_proxy)

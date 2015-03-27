@@ -9,7 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 """
 Defines the supported types of authentication methods with Shotgun. You can either authenticate
-with a session token with the SessionUser class or with an api key with the ApiScriptUser class.
+with a session token with the SessionUser class or with an api key with the ScriptUser class.
 """
 
 import pickle
@@ -260,7 +260,7 @@ class SessionUser(ShotgunUser):
             return None
 
 
-class ApiScriptUser(ShotgunUser):
+class ScriptUser(ShotgunUser):
     """
     User that authenticates to the Shotgun server using a api name and api key.
     """
@@ -273,7 +273,7 @@ class ApiScriptUser(ShotgunUser):
         :param api_key: API script key.
         :param http_proxy: HTTP proxy to use with this host. Defaults to None.
         """
-        super(ApiScriptUser, self).__init__(host, http_proxy)
+        super(ScriptUser, self).__init__(host, http_proxy)
 
         self._api_script = api_script
         self._api_key = api_key
@@ -303,13 +303,13 @@ class ApiScriptUser(ShotgunUser):
     @staticmethod
     def from_dict(representation):
         """
-        Creates a ApiScriptUser instance from a dictionary of values.
+        Creates a ScriptUser instance from a dictionary of values.
 
         :param representation: Dictionary of values.
 
-        :returns: A ApiScriptUser instance.
+        :returns: A ScriptUser instance.
         """
-        return ApiScriptUser(**representation)
+        return ScriptUser(**representation)
 
 
 def is_script_user(user):
@@ -318,9 +318,9 @@ def is_script_user(user):
 
     :param user: A ShotgunUser derived instance.
 
-    :returns: True is user is an instance of ApiScriptUser, False otherwise.
+    :returns: True is user is an instance of ScriptUser, False otherwise.
     """
-    return isinstance(user, ApiScriptUser)
+    return isinstance(user, ScriptUser)
 
 
 def is_session_user(user):
@@ -337,7 +337,7 @@ def is_session_user(user):
 __factories = {
     # LoginUser should go here in we ever need it.
     SessionUser.__name__: SessionUser.from_dict,
-    ApiScriptUser.__name__: ApiScriptUser.from_dict
+    ScriptUser.__name__: ScriptUser.from_dict
 }
 
 

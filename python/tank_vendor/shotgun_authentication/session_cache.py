@@ -194,5 +194,5 @@ def generate_session_token(hostname, login, password, http_proxy):
     except (ProtocolError, httplib2.ServerNotFoundError):
         raise AuthenticationError("Server %s was not found." % hostname)
     except:
-        # We couldn't login, so try again.
         logger.exception("There was a problem logging in.")
+        raise

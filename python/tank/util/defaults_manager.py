@@ -25,5 +25,5 @@ class DefaultsManager(sg_auth.DefaultsManager):
         from . import shotgun
         data = shotgun.get_associated_sg_config_data()
         if "api_script" in data:
-            return sg_auth.user.ApiScriptUser(**data)
+            return sg_auth.user.ScriptUser(**data)
         return None
