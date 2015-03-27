@@ -20,8 +20,7 @@ import threading
 import os
 import sys
 from .errors import AuthenticationError, AuthenticationDisabled
-from . import authentication_manager
-from . import connection
+from . import session_cache
 
 
 # FIXME: Quick hack to easily disable logging in this module while keeping the
@@ -183,7 +182,7 @@ class AuthenticationHandlerBase(object):
         :returns: If the credentials were valid, returns a session token, otherwise returns None.
         """
         try:
-            return connection.generate_session_token(hostname, login, password, http_proxy)
+            return session_cache.generate_session_token(hostname, login, password, http_proxy)
         except AuthenticationError:
             return None
 
@@ -384,6 +383,9 @@ def _authentication_loop(user, session_token, credentials_handler):
         except AuthenticationError:
             AuthenticationHandlerBase._authentication_disabled = True
             logger.debug("Authentication cancelled, disabling authentication.")
+            if not user.is_volatile():
+                # Clear the cached user from the host.
+                user.clear_saved_user(user.get_host())
             raise
 
         logger.debug("Login successful!")
@@ -391,7 +393,7 @@ def _authentication_loop(user, session_token, credentials_handler):
         # Do not save credentials for a user that exists only for this process (when loaded from a context for example)
         user.set_session_token(session_token)
         if not user.is_volatile():
-            authentication_manager._cache_session_data(
+            session_cache.cache_session_data(
                 user.get_host(), user.get_login(), user.get_session_token()
             )
 
@@ -421,6 +423,7 @@ def _console_renew_session(user, session_token):
 
 
 def renew_session(user, session_token):
+    logger.debug("Credentials were out of date, renewing them.")
     QtCore, QtGui, has_ui = _get_qt_state()
     # If we have a gui, we need gui based authentication
     if has_ui:

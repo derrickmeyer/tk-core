@@ -15,15 +15,15 @@ import sys
 from tank_test.tank_test_base import *
 import tank_test
 
-from tank.util.core_authentication_manager import CoreAuthenticationManager
-from tank_vendor.shotgun_authentication import connection, interactive_authentication
+from tank.util.core_session_cache import CoreAuthenticationManager
+from tank_vendor.shotgun_authentication import interactive_authentication
 from tank_vendor.shotgun_api3 import shotgun
 
 
 class AuthenticationTests(TankTestBase):
     """
     Tests the session module. Note that because how caching the session information is still
-    very much in flux, we will not be unit testing cache_session_info, get_login_info and
+    very much in flux, we will not be unit testing cache_session_info, get_session_data and
     delete_session_data for now, since they have complicated to test and would simply slow us down.
     """
 

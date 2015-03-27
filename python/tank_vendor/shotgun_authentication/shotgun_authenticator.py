@@ -9,9 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from . import interactive_authentication
-from . import authentication_manager
 from . import user
-from .errors import AuthenticationError
 from .defaults_manager import DefaultsManager
 
 
@@ -143,7 +141,7 @@ class ShotgunAuthenticator(object):
         pass
 
     def get_user(self):
-        user = self.get_saved_user() or self._defaults_manager.get_user()
+        user = self._defaults_manager.get_user() or self.get_saved_user()
         if user:
             return user
         user = self.get_user_from_prompt()

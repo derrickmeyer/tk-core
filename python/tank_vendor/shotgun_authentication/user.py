@@ -13,8 +13,10 @@ with a session token with the SessionUser class or with an api key with the ApiS
 """
 
 import pickle
+from tank_vendor.shotgun_api3 import Shotgun, AuthenticationFault
 
-from . import authentication_manager
+from . import session_cache
+from . import AuthenticationError
 
 
 class ShotgunUser(object):
@@ -148,8 +150,18 @@ class SessionUser(ShotgunUser):
 
         :returns: A Shotgun instance.
         """
-        from . import connection
-        return connection.create_or_renew_sg_connection_from_session(self)
+        original_session_token = self._session_token
+        sg = self._create_sg_connection()
+        if sg:
+            return sg
+
+        from . import interactive_authentication
+        interactive_authentication.renew_session(self, original_session_token)
+        sg = self._create_sg_connection()
+        if not sg:
+            # This is not supposed to happen.
+            raise AuthenticationError("Authentication failed.")
+        return sg
 
     def mark_volatile(self):
         """
@@ -173,7 +185,7 @@ class SessionUser(ShotgunUser):
 
         :raises AuthenticationError: Raised if the user is a script user.
         """
-        authentication_manager._cache_session_data(
+        session_cache.cache_session_data(
             self.get_host(),
             self.get_login(),
             self.get_session_token()
@@ -188,7 +200,7 @@ class SessionUser(ShotgunUser):
 
         :param host: Host to remove the saved user from.
         """
-        authentication_manager._delete_session_data(host)
+        session_cache.delete_session_data(host)
 
     @staticmethod
     def get_saved_user(host, http_proxy):
@@ -199,7 +211,7 @@ class SessionUser(ShotgunUser):
 
         :returns: A SessionUser instance if a user was saved, None otherwise.
         """
-        credentials = authentication_manager._get_login_info(host)
+        credentials = session_cache.get_session_data(host)
         if credentials:
             return SessionUser(
                 host=host,
@@ -238,6 +250,15 @@ class SessionUser(ShotgunUser):
         data["session_token"] = self._session_token
         data["is_volatile"] = self._is_volatile
 
+    def _create_sg_connection(self):
+        sg = Shotgun(self._host, session_token=self._session_token, http_proxy=self._http_proxy)
+        try:
+            sg.find_one("HumanUser", [])
+            return sg
+        except AuthenticationFault:
+            # Session has expired.
+            return None
+
 
 class ApiScriptUser(ShotgunUser):
     """
@@ -263,13 +284,12 @@ class ApiScriptUser(ShotgunUser):
 
         :returns: A Shotgun instance.
         """
-        from . import connection
-        return connection.create_sg_connection_from_script_user({
-            "host": self._host,
-            "http_proxy": self._http_proxy,
-            "api_script": self._api_script,
-            "api_key": self._api_key
-        })
+        return Shotgun(
+            self._host,
+            script_name=self._api_script,
+            api_key=self._api_key,
+            http_proxy=self._http_proxy
+        )
 
     def _serialize(self, data):
         """

@@ -23,7 +23,7 @@ from tank_vendor import yaml
 # use api json to cover py 2.5
 from tank_vendor import shotgun_api3
 json = shotgun_api3.shotgun.json
-from tank_vendor.shotgun_authentication import ShotgunAuthenticator, connection, AuthenticationModuleError
+from tank_vendor.shotgun_authentication import ShotgunAuthenticator, AuthenticationModuleError
 
 from ..errors import TankError, TankAuthenticationError
 from .. import hook
@@ -32,10 +32,8 @@ from . import login
 from .defaults_manager import DefaultsManager
 
 
-
 def __get_api_core_config_location():
     """
-    Given the location of the code, find the core config location.
 
     Walk from the location of this file on disk to the config area.
     this operation is guaranteed to work on any valid tank installation
@@ -202,7 +200,11 @@ def __create_sg_connection(config_data=None):
     try:
         if config_data:
             # Credentials were passed in, so let's run the legacy authentication mechanism for script user.
-            sg = connection.create_sg_connection_from_script_user(config_data)
+            sg = shotgun_api3.Shotgun(
+                config_data["host"],
+                script_name=config_data["api_script"], api_key=config_data["api_key"],
+                http_proxy=config_data.get("http_proxy")
+            )
         else:
             from .. import api
             # We're not running any special code for Psyop, so run the new Toolkit authentication code.
@@ -224,7 +226,7 @@ def __create_sg_connection(config_data=None):
 
     return sg
 
-    
+
 def download_url(sg, url, location):
     """
     Convenience method that downloads a file from a given url.

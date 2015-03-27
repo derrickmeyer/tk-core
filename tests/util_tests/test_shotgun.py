@@ -21,7 +21,7 @@ from tank_test.tank_test_base import *
 from tank_test import mockgun
 from tank.template import TemplatePath
 from tank.templatekey import SequenceKey
-from tank_vendor.shotgun_authentication import connection, errors as auth_errors
+from tank_vendor.shotgun_authentication import errors as auth_errors
 
 
 class TestShotgunFindPublish(TankTestBase):
@@ -461,7 +461,7 @@ class TestCreateSessionBasedConnection(TankTestBase):
     def tearDown(self):
         pass
 
-    @patch("tank_vendor.shotgun_authentication.authentication_manager.AuthenticationManager.get_connection_information")
+    @patch("tank_vendor.shotgun_authentication.session_cache.AuthenticationManager.get_connection_information")
     @patch("tank_vendor.shotgun_authentication.connection.create_or_renew_sg_connection_from_session")
     def test_no_script_user_uses_human_user(
         self,
