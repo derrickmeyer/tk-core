@@ -1141,9 +1141,9 @@ if __name__ == "__main__":
         # If the user is trying to logout, try to do so
         if "logout" in cmd_line:
             sa = ShotgunAuthenticator(DefaultsManager())
-            user = sa.get_saved_user()
+            # Clear the saved user.
+            user = sa.clear_saved_user()
             if user:
-                sa.clear_saved_user()
                 logger.info("Succesfully logged out from %s." % user.get_host())
             else:
                 logger.info("Not logged in.")
